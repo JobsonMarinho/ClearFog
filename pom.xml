@@ -6,7 +6,7 @@
 
     <groupId>de.rapha149.clearfog</groupId>
     <artifactId>ClearFog-parent</artifactId>
-    <version>1.6.8</version>
+    <version>1.6.9</version>
     <packaging>pom</packaging>
 
     <modules>
@@ -26,10 +26,12 @@
         <module>1_21_R3</module>
         <module>1_21_R4</module>
         <module>1_21_R5</module>
+        <module>1_21_R6</module>
+        <module>1_21_R7</module>
     </modules>
 
     <properties>
-        <java.version>17</java.version>
+        <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
