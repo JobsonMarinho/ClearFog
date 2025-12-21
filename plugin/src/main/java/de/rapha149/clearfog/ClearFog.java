@@ -20,18 +20,20 @@ import static de.rapha149.clearfog.Util.config;
 
 public final class ClearFog extends JavaPlugin {
 
-    private static final Map<String, String> VERSIONS = Map.of(
-            "1.20.5", "1_20_R4",
-            "1.20.6", "1_20_R4",
-            "1.21.1", "1_21_R1",
-            "1.21.3", "1_21_R2",
-            "1.21.4", "1_21_R3",
-            "1.21.5", "1_21_R4",
-            "1.21.6", "1_21_R5",
-            "1.21.7", "1_21_R5",
-            "1.21.8", "1_21_R5"
+    private static final Map<String, String> VERSIONS = Map.ofEntries(
+            Map.entry("1.20.5", "1_20_R4"),
+            Map.entry("1.20.6", "1_20_R4"),
+            Map.entry("1.21.1", "1_21_R1"),
+            Map.entry("1.21.3", "1_21_R2"),
+            Map.entry("1.21.4", "1_21_R3"),
+            Map.entry("1.21.5", "1_21_R4"),
+            Map.entry("1.21.6", "1_21_R5"),
+            Map.entry("1.21.7", "1_21_R5"),
+            Map.entry("1.21.8", "1_21_R5"),
+            Map.entry("1.21.10", "1_21_R6"),
+            Map.entry("1.21.11", "1_21_R7")
     );
-    private static final String NEWEST_VERSION = "1_21_R5";
+    private static final String NEWEST_VERSION = "1_21_R7";
 
     private static ClearFog instance;
 
