@@ -24,7 +24,7 @@ public class Wrapper1_21_R7 implements VersionWrapper {
     @Override
     public List<ChannelPipeline> getServerPipelines() throws NoSuchFieldException, IllegalAccessException {
         ServerConnection conn = ((CraftServer) Bukkit.getServer()).getServer().ak();
-        Field field = conn.getClass().getDeclaredField("f");
+        Field field = conn.getClass().getDeclaredField("d");
         field.setAccessible(true);
         List<ChannelFuture> channels = (List<ChannelFuture>) field.get(conn);
         field.setAccessible(false);
