@@ -34,9 +34,10 @@ public final class ClearFog extends JavaPlugin {
             Map.entry("1.21.11", "1_21_R7"),
             Map.entry("26.1", "26_R1"),
             Map.entry("26.1.1", "26_R1"),
-            Map.entry("26.1.2", "26_R1")
+            Map.entry("26.1.2", "26_R1"),
+            Map.entry("26.2", "26_R2")
     );
-    private static final String NEWEST_VERSION = "26_R1";
+    private static final String NEWEST_VERSION = "26_R2";
 
     private static ClearFog instance;
 
