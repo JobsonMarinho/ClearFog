@@ -46,8 +46,19 @@ public final class ClearFog extends JavaPlugin {
         instance = this;
 
         String craftBukkitPackage = Bukkit.getServer().getClass().getPackage().getName();
-        String nmsVersion = craftBukkitPackage.contains(".v") ? craftBukkitPackage.split("\\.")[3].substring(1) :
-                VERSIONS.getOrDefault(Bukkit.getBukkitVersion().split("-")[0], NEWEST_VERSION);
+        String nmsVersion;
+        if (craftBukkitPackage.contains(".v"))
+            nmsVersion = craftBukkitPackage.split("\\.")[3].substring(1);
+        else {
+            // since 26.1 paper and its forks report the api version as "26.1.2.build.69-stable"
+            String bukkitVersion = Bukkit.getBukkitVersion().split("-")[0];
+            int buildIndex = bukkitVersion.indexOf(".build.");
+            if (buildIndex != -1)
+                bukkitVersion = bukkitVersion.substring(0, buildIndex);
+            nmsVersion = VERSIONS.getOrDefault(bukkitVersion, NEWEST_VERSION);
+        }
+        getLogger().info("Server version \"" + Bukkit.getBukkitVersion() + "\" detected, using version support \"" + nmsVersion + "\".");
+
         try {
             WRAPPER = (VersionWrapper) Class.forName(VersionWrapper.class.getPackage().getName() + ".Wrapper" + nmsVersion).newInstance();
         } catch (IllegalAccessException | InstantiationException e) {

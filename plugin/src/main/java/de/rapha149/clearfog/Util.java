@@ -120,8 +120,10 @@ public class Util {
                                             msg = WRAPPER.replaceViewDistance(msg, checkViewDistance(viewDistance));
                                         lastViewDistances.put(player, WRAPPER.getViewDistanceFromPacket(msg));
                                     }
-                                } catch (Exception e) {
-                                    e.printStackTrace();
+                                } catch (Throwable t) {
+                                    // catching errors as well so an unsupported server version does not
+                                    // break the packet pipeline and therefore the login of every player
+                                    t.printStackTrace();
                                 }
                                 super.write(ctx, msg, promise);
                             }
