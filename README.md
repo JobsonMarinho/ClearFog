@@ -1,3 +1,5 @@
+![ClearFog — clear Minecraft mountain landscape](assets/clearfog-banner.png)
+
 # ClearFog
 
 Are you also unnerved by the new 1.18 fog system? And you tried to increase the server view distance?  
