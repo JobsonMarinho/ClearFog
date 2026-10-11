@@ -412,8 +412,13 @@ public class FogCommand implements CommandExecutor, TabCompleter {
                         sender.sendMessage(getMessage("individual.list.prefix"));
                         String part = getMessage("individual.list.part");
                         players.forEach(uuid -> {
-                            OfflinePlayer player = Bukkit.getOfflinePlayer(UUID.fromString(uuid));
-                            sender.sendMessage(part.replace("%player%", player.isOnline() || player.hasPlayedBefore() ? player.getName() : uuid)
+                            // Verificar online primeiro (gratis); so vai ao .dat se o jogador estiver offline.
+                            UUID parsedUuid = UUID.fromString(uuid);
+                            Player onlinePlayer = Bukkit.getPlayer(parsedUuid);
+                            String playerName = onlinePlayer != null
+                                    ? onlinePlayer.getName()
+                                    : Bukkit.getOfflinePlayer(parsedUuid).getName();
+                            sender.sendMessage(part.replace("%player%", playerName != null ? playerName : uuid)
                                     .replace("%distance%", String.valueOf(config.getInt("individual.players." + uuid))));
                         });
                         break;
@@ -432,84 +437,104 @@ public class FogCommand implements CommandExecutor, TabCompleter {
 
                         boolean set = arg.equals("set");
                         boolean permOthers = sender.hasPermission("clearfog.individual.values.others");
-                        boolean self;
-                        OfflinePlayer target;
+                        // args pode ter sido reatribuido acima (addAll), entao capturamos antes do lambda.
+                        final String[] capturedArgs = args;
                         if (args.length >= (set ? 4 : 3) && permOthers) {
-                            self = false;
                             String name = args[set ? 3 : 2];
-                            target = Bukkit.getOfflinePlayer(name);
-                            if (!target.isOnline() && !target.hasPlayedBefore()) {
-                                sender.sendMessage(getMessage("player_not_found").replace("%player%", name));
-                                break;
+                            Player onlineTarget = Bukkit.getPlayerExact(name);
+                            if (onlineTarget != null) {
+                                // Online: resolve sem I/O na main thread
+                                doIndividualValueOp(sender, arg, set, false, permOthers, syntaxPrefix, onlineTarget, capturedArgs);
+                            } else {
+                                // Offline: getOfflinePlayer(String) pode consultar Mojang — resolve async
+                                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                                    @SuppressWarnings("deprecation")
+                                    OfflinePlayer resolved = Bukkit.getOfflinePlayer(name);
+                                    boolean notFound = !resolved.isOnline() && !resolved.hasPlayedBefore();
+                                    Bukkit.getScheduler().runTask(plugin, () -> {
+                                        if (notFound) {
+                                            sender.sendMessage(getMessage("player_not_found").replace("%player%", name));
+                                            return;
+                                        }
+                                        doIndividualValueOp(sender, arg, set, false, permOthers, syntaxPrefix, resolved, capturedArgs);
+                                    });
+                                });
                             }
                         } else if (sender instanceof Player) {
-                            self = true;
-                            target = (Player) sender;
+                            doIndividualValueOp(sender, arg, set, true, permOthers, syntaxPrefix, (Player) sender, capturedArgs);
                         } else {
                             sender.sendMessage(getMessage("syntax").replace("%syntax%",
                                     syntaxPrefix + arg + (set ? " <View Distance>" : "") + " <Player>"));
-                            break;
-                        }
-
-                        String key = "individual.players." + target.getUniqueId();
-                        String messagePrefix = "individual." + arg + "." + (self ? "self" : "others") + ".";
-                        if (arg.equals("get")) {
-                            if (config.isSet(key)) {
-                                sender.sendMessage(getMessage(messagePrefix + "return")
-                                        .replace("%distance%", String.valueOf(checkViewDistance(config.getInt(key))))
-                                        .replace("%player%", target.getName()));
-                            } else
-                                sender.sendMessage(getMessage(messagePrefix + "not_set").replace("%player%", target.getName()));
-                        } else if (set) {
-                            if (args.length >= 3) {
-                                int viewDistance;
-                                try {
-                                    viewDistance = Integer.parseInt(args[2]);
-                                } catch (NumberFormatException e) {
-                                    sender.sendMessage(getMessage("state_number"));
-                                    break;
-                                }
-
-                                if (viewDistance < 1) {
-                                    sender.sendMessage(getMessage("out_of_bounds"));
-                                    break;
-                                }
-                                if (config.getInt(key) == viewDistance) {
-                                    sender.sendMessage(getMessage(messagePrefix + "as_before")
-                                            .replace("%distance%", String.valueOf(viewDistance))
-                                            .replace("%player%", target.getName()));
-                                    break;
-                                }
-
-                                config.set(key, viewDistance);
-                                plugin.saveConfig();
-                                sender.sendMessage(getMessage(messagePrefix + "success")
-                                        .replace("%distance%", String.valueOf(viewDistance))
-                                        .replace("%player%", target.getName()));
-
-                                if (target.isOnline())
-                                    updateViewDistance(target.getPlayer());
-                            } else
-                                sender.sendMessage(getMessage("syntax").replace("%syntax%",
-                                        syntaxPrefix + "set <View Distance>" + (permOthers ? " [Player]" : "")));
-                        } else {
-                            if (!config.isSet(key)) {
-                                sender.sendMessage(getMessage(messagePrefix + "does_not_exist").replace("%player%", target.getName()));
-                                break;
-                            }
-
-                            config.set(key, null);
-                            plugin.saveConfig();
-                            sender.sendMessage(getMessage(messagePrefix + "success").replace("%player%", target.getName()));
-
-                            if (target.isOnline())
-                                updateViewDistance(target.getPlayer());
                         }
                         break;
                 }
                 break;
         }
         return true;
+    }
+
+    /**
+     * Executa a operacao get/set/unset de individual já com o jogador resolvido.
+     * Separado do onCommand para poder ser chamado tanto na main thread (jogador online)
+     * quanto no callback do scheduler (jogador offline, apos resolucao async).
+     */
+    private void doIndividualValueOp(CommandSender sender, String arg, boolean set, boolean self,
+                                      boolean permOthers, String syntaxPrefix,
+                                      OfflinePlayer target, String[] args) {
+        String key = "individual.players." + target.getUniqueId();
+        String messagePrefix = "individual." + arg + "." + (self ? "self" : "others") + ".";
+        if (arg.equals("get")) {
+            if (config.isSet(key)) {
+                sender.sendMessage(getMessage(messagePrefix + "return")
+                        .replace("%distance%", String.valueOf(checkViewDistance(config.getInt(key))))
+                        .replace("%player%", target.getName()));
+            } else
+                sender.sendMessage(getMessage(messagePrefix + "not_set").replace("%player%", target.getName()));
+        } else if (set) {
+            if (args.length >= 3) {
+                int viewDistance;
+                try {
+                    viewDistance = Integer.parseInt(args[2]);
+                } catch (NumberFormatException e) {
+                    sender.sendMessage(getMessage("state_number"));
+                    return;
+                }
+
+                if (viewDistance < 1) {
+                    sender.sendMessage(getMessage("out_of_bounds"));
+                    return;
+                }
+                if (config.getInt(key) == viewDistance) {
+                    sender.sendMessage(getMessage(messagePrefix + "as_before")
+                            .replace("%distance%", String.valueOf(viewDistance))
+                            .replace("%player%", target.getName()));
+                    return;
+                }
+
+                config.set(key, viewDistance);
+                plugin.saveConfig();
+                sender.sendMessage(getMessage(messagePrefix + "success")
+                        .replace("%distance%", String.valueOf(viewDistance))
+                        .replace("%player%", target.getName()));
+
+                if (target.isOnline())
+                    updateViewDistance(target.getPlayer());
+            } else
+                sender.sendMessage(getMessage("syntax").replace("%syntax%",
+                        syntaxPrefix + "set <View Distance>" + (permOthers ? " [Player]" : "")));
+        } else {
+            if (!config.isSet(key)) {
+                sender.sendMessage(getMessage(messagePrefix + "does_not_exist").replace("%player%", target.getName()));
+                return;
+            }
+
+            config.set(key, null);
+            plugin.saveConfig();
+            sender.sendMessage(getMessage(messagePrefix + "success").replace("%player%", target.getName()));
+
+            if (target.isOnline())
+                updateViewDistance(target.getPlayer());
+        }
     }
 
     @Override
@@ -568,7 +593,8 @@ public class FogCommand implements CommandExecutor, TabCompleter {
             }
             if (args.length == length && args[0].equalsIgnoreCase("individual") &&
                 sender.hasPermission("clearfog.individual.values.others")) {
-                Arrays.stream(Bukkit.getOfflinePlayers()).map(OfflinePlayer::getName).forEach(list::add);
+                // getOfflinePlayers() leria ~44k arquivos de playerdata na main thread — lista so os online.
+                Bukkit.getOnlinePlayers().stream().map(Player::getName).forEach(list::add);
             }
         }
 
